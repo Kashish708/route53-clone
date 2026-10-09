@@ -11,11 +11,6 @@ interface Record {
   ttl: number;
 }
 
-// Satisfy Next.js App Router static generation for dynamic routes
-export function generateStaticParams() {
-  return [{ id: '0' }, { id: '1' }, { id: '2' }, { id: '3' }];
-}
-
 export default function ZoneDetails() {
   const [zoneIdStr, setZoneIdStr] = useState<string>("");
   const [zoneName, setZoneName] = useState<string>("Loading...");
