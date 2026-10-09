@@ -15,7 +15,7 @@ interface Record {
 
 export default function ZoneDetails() {
   const params = useParams();
-  const zoneId = params.id;
+  const zoneId = params.id as string; // Assert zoneId as a string
   
   const [zoneName, setZoneName] = useState<string>("Loading...");
   const [records, setRecords] = useState<Record[]>([]);
@@ -30,7 +30,7 @@ export default function ZoneDetails() {
   useEffect(() => {
     async function fetchZoneDetails() {
       try {
-        // Fetch zone details
+        // Fetch zone details using the dynamically retrieved zoneId
         const zoneRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneId}`);
         if (zoneRes.ok) {
           const zoneData = await zoneRes.json();
