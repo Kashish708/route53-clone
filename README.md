@@ -6,7 +6,7 @@ A full-stack cloud DNS management web application inspired by **Amazon Route 53*
 
 * **Frontend:** Next.js (App Router, TypeScript, Tailwind CSS) - Hosted on **Vercel**
 * **Backend:** FastAPI (Python, SQLAlchemy, SQLite) - Hosted on **Render**
-
+---
 ###  Features
 
 * **Hosted Zone Management:** Create, view, and delete hosted domains and zones.
