@@ -15,7 +15,10 @@ interface Record {
 
 export default function ZoneDetails() {
   const params = useParams();
-  const zoneId = params.id as string; // Assert zoneId as a string
+  
+  // Safely parse the ID, handling potential undefined/string edge cases
+  const parsedId = parseInt(params?.id as string, 10);
+  const zoneId = isNaN(parsedId) ? null : parsedId;
   
   const [zoneName, setZoneName] = useState<string>("Loading...");
   const [records, setRecords] = useState<Record[]>([]);
@@ -29,8 +32,10 @@ export default function ZoneDetails() {
 
   useEffect(() => {
     async function fetchZoneDetails() {
+      if (zoneId === null) return;
+      
       try {
-        // Fetch zone details using the dynamically retrieved zoneId
+        // Fetch zone details
         const zoneRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneId}`);
         if (zoneRes.ok) {
           const zoneData = await zoneRes.json();
@@ -50,14 +55,15 @@ export default function ZoneDetails() {
       }
     }
 
-    if (zoneId) {
+    // Explicitly check for null, so 0 is allowed to pass
+    if (zoneId !== null) {
       fetchZoneDetails();
     }
   }, [zoneId]);
 
   const handleAddRecord = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!recordName || !recordValue) return;
+    if (!recordName || !recordValue || zoneId === null) return;
 
     setSubmitting(true);
     try {
@@ -71,14 +77,13 @@ export default function ZoneDetails() {
           name: fullRecordName,
           type: recordType,
           value: recordValue,
-          ttl: 300, // Default TTL
+          ttl: 300,
         }),
       });
 
       if (response.ok) {
         const newRecord = await response.json();
         setRecords([...records, newRecord]);
-        // Clear form
         setRecordName('');
         setRecordValue('');
       } else {
@@ -93,6 +98,7 @@ export default function ZoneDetails() {
   };
 
   const handleDeleteRecord = async (recordId: string) => {
+    if (zoneId === null) return;
     if (!confirm('Are you sure you want to delete this record?')) return;
 
     try {
@@ -110,6 +116,10 @@ export default function ZoneDetails() {
       alert('An error occurred');
     }
   };
+
+  if (zoneId === null) {
+     return <div className="p-8">Invalid Zone ID</div>;
+  }
 
   return (
     <div className="flex h-screen bg-gray-100">
