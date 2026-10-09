@@ -16,7 +16,7 @@ class DNSRecord(Base):
     id = Column(Integer, primary_key=True, index=True)
     zone_id = Column(Integer, ForeignKey("hosted_zones.id"))
     name = Column(String, index=True)
-    record_type = Column(String) # A, AAAA, CNAME, etc.
+    record_type = Column(String) 
     value = Column(String)
     ttl = Column(Integer, default=300)
     zone = relationship("HostedZone", back_populates="records")
