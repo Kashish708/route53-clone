@@ -15,10 +15,8 @@ interface Record {
 
 export default function ZoneDetails() {
   const params = useParams();
-  
-  // Safely parse the ID, handling potential undefined/string edge cases
-  const parsedId = parseInt(params?.id as string, 10);
-  const zoneId = isNaN(parsedId) ? null : parsedId;
+  // Ensure we safely extract the string ID
+  const zoneIdStr = params?.id as string;
   
   const [zoneName, setZoneName] = useState<string>("Loading...");
   const [records, setRecords] = useState<Record[]>([]);
@@ -31,44 +29,67 @@ export default function ZoneDetails() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+
     async function fetchZoneDetails() {
-      if (zoneId === null) return;
+      if (!zoneIdStr) return;
       
       try {
-        // Fetch zone details
-        const zoneRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneId}`);
-        if (zoneRes.ok) {
+        setLoading(true);
+        // 1. Fetch zone details (to get the name)
+        const zoneRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}`);
+        if (zoneRes.ok && isMounted) {
           const zoneData = await zoneRes.json();
           setZoneName(zoneData.name);
+        } else if (isMounted) {
+           setZoneName("Unknown Zone");
         }
 
-        // Fetch records for this zone
-        const recordsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneId}/records/`);
-        if (recordsRes.ok) {
-          const recordsData = await recordsRes.json();
-          setRecords(recordsData);
+        // 2. Fetch records safely, handling empty states without crashing
+        const recordsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}/records/`);
+        if (recordsRes.ok && isMounted) {
+          const text = await recordsRes.text();
+          // Check if response is empty before parsing JSON to prevent crashes
+          if (text) {
+             try {
+                const recordsData = JSON.parse(text);
+                setRecords(Array.isArray(recordsData) ? recordsData : []);
+             } catch (e) {
+                console.error("Failed to parse records", e);
+                setRecords([]);
+             }
+          } else {
+             setRecords([]);
+          }
+        } else if (isMounted) {
+           // If 404, it just means no records exist yet. This is not a crash!
+           setRecords([]);
         }
       } catch (error) {
         console.error('Error fetching zone details:', error);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+           setLoading(false);
+        }
       }
     }
 
-    // Explicitly check for null, so 0 is allowed to pass
-    if (zoneId !== null) {
-      fetchZoneDetails();
-    }
-  }, [zoneId]);
+    fetchZoneDetails();
+    
+    return () => {
+       isMounted = false;
+    };
+  }, [zoneIdStr]);
 
   const handleAddRecord = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!recordName || !recordValue || zoneId === null) return;
+    if (!recordName || !recordValue || !zoneIdStr) return;
 
     setSubmitting(true);
     try {
       const fullRecordName = `${recordName}.${zoneName}`;
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneId}/records/`, {
+      // Note: We use the raw string ID here for the API call
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}/records/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -87,22 +108,22 @@ export default function ZoneDetails() {
         setRecordName('');
         setRecordValue('');
       } else {
-        alert('Failed to add record');
+        alert('Failed to add record. Ensure you entered valid data.');
       }
     } catch (error) {
       console.error('Error adding record:', error);
-      alert('An error occurred');
+      alert('An error occurred while adding the record.');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDeleteRecord = async (recordId: string) => {
-    if (zoneId === null) return;
+    if (!zoneIdStr) return;
     if (!confirm('Are you sure you want to delete this record?')) return;
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneId}/records/${recordId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}/records/${recordId}`, {
         method: 'DELETE',
       });
 
@@ -113,11 +134,10 @@ export default function ZoneDetails() {
       }
     } catch (error) {
       console.error('Error deleting record:', error);
-      alert('An error occurred');
     }
   };
 
-  if (zoneId === null) {
+  if (!zoneIdStr) {
      return <div className="p-8">Invalid Zone ID</div>;
   }
 
@@ -241,7 +261,13 @@ export default function ZoneDetails() {
                 {loading ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                      Loading records...
+                      <div className="flex flex-col items-center justify-center">
+                        <svg className="animate-spin h-8 w-8 text-blue-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Loading records...
+                      </div>
                     </td>
                   </tr>
                 ) : records.length === 0 ? (
