@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -27,59 +29,48 @@ export default function ZoneDetails() {
   const [recordValue, setRecordValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // 1. Prevent hydration errors by ensuring component is mounted
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // 2. Set the page title safely
   useEffect(() => {
-    if (mounted) {
-      document.title = `${zoneName} - AWS Clone`;
-    }
-  }, [zoneName, mounted]);
+    if (mounted && zoneIdStr) {
+      async function fetchZoneDetails() {
+        try {
+          setLoading(true);
+          const zoneRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}`);
+          if (zoneRes.ok) {
+            const zoneData = await zoneRes.json();
+            setZoneName(zoneData.name);
+          } else {
+            setZoneName("Unknown Zone");
+          }
 
-  // 3. Fetch data safely
-  useEffect(() => {
-    if (!mounted || !zoneIdStr) return;
-
-    async function fetchZoneDetails() {
-      try {
-        setLoading(true);
-        // Fetch zone details
-        const zoneRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}`);
-        if (zoneRes.ok) {
-          const zoneData = await zoneRes.json();
-          setZoneName(zoneData.name);
-        } else {
-          setZoneName("Unknown Zone");
-        }
-
-        // Fetch records safely
-        const recordsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}/records/`);
-        if (recordsRes.ok) {
-          const text = await recordsRes.text();
-          if (text) {
-             try {
+          const recordsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}/records/`);
+          if (recordsRes.ok) {
+            const text = await recordsRes.text();
+            if (text) {
+              try {
                 const recordsData = JSON.parse(text);
                 setRecords(Array.isArray(recordsData) ? recordsData : []);
-             } catch (e) {
+              } catch (e) {
                 setRecords([]);
-             }
+              }
+            } else {
+              setRecords([]);
+            }
           } else {
-             setRecords([]);
+            setRecords([]);
           }
-        } else {
-           setRecords([]);
+        } catch (error) {
+          console.error('Error fetching zone details:', error);
+        } finally {
+          setLoading(false);
         }
-      } catch (error) {
-        console.error('Error fetching zone details:', error);
-      } finally {
-        setLoading(false);
       }
-    }
 
-    fetchZoneDetails();
+      fetchZoneDetails();
+    }
   }, [mounted, zoneIdStr]);
 
   const handleAddRecord = async (e: React.FormEvent) => {
@@ -137,17 +128,12 @@ export default function ZoneDetails() {
     }
   };
 
-  // Show safe loading state while client hydrates
   if (!mounted) {
     return (
       <div className="flex h-screen bg-gray-100 items-center justify-center">
-         <div className="text-gray-500 text-xl font-medium animate-pulse">Loading Application...</div>
+        <div className="text-gray-500 text-xl font-medium animate-pulse">Loading Application...</div>
       </div>
     );
-  }
-
-  if (!zoneIdStr) {
-     return <div className="p-8 text-black">Invalid Zone ID</div>;
   }
 
   return (
