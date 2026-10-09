@@ -11,6 +11,11 @@ interface Record {
   ttl: number;
 }
 
+// Satisfy Next.js App Router static generation for dynamic routes
+export function generateStaticParams() {
+  return [{ id: '0' }, { id: '1' }, { id: '2' }, { id: '3' }];
+}
+
 export default function ZoneDetails() {
   const [zoneIdStr, setZoneIdStr] = useState<string>("");
   const [zoneName, setZoneName] = useState<string>("Loading...");
@@ -23,7 +28,7 @@ export default function ZoneDetails() {
   const [recordValue, setRecordValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Extract ID directly from window location to avoid all Next.js router prerender crashes
+  // Extract ID directly from window location safely on the client side
   useEffect(() => {
     const pathSegments = window.location.pathname.split('/');
     const idFromPath = pathSegments[pathSegments.length - 1];
@@ -240,9 +245,6 @@ export default function ZoneDetails() {
                     Value
                   </th>
                   <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">
-                    TTL
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">
                     Action
                   </th>
                 </tr>
@@ -271,6 +273,9 @@ export default function ZoneDetails() {
                     <tr key={record.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-gray-900">
                         {record.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                        {record.type}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-gray-500">
                         {record.value}
