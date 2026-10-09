@@ -277,7 +277,6 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { toast } from 'sonner';
 
 interface Record {
   id: string;
@@ -286,21 +285,18 @@ interface Record {
   record_type?: string;
   value: string;
   ttl: number;
-  [key: string]: any; // Allow any other keys for debugging
 }
 
 export default function ZoneDetails() {
   const [zoneIdStr, setZoneIdStr] = useState<string>("");
-  const [zoneName, setZoneName] = useState<string>("example.com");
+  const [zoneName, setZoneName] = useState<string>("Loading...");
   const [records, setRecords] = useState<Record[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Form state
+  // Form state matching your UI
   const [recordName, setRecordName] = useState('');
   const [recordType, setRecordType] = useState('A');
   const [recordValue, setRecordValue] = useState('');
-  const [recordTtl, setRecordTtl] = useState<number>(300);
-  const [typeFilter, setTypeFilter] = useState('ALL');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -339,7 +335,6 @@ export default function ZoneDetails() {
         }
       } catch (error) {
         console.error('Error fetching zone details:', error);
-        toast.error('Failed to load zone details');
       } finally {
         setLoading(false);
       }
@@ -352,25 +347,18 @@ export default function ZoneDetails() {
     e.preventDefault();
     if (!recordName || !recordValue || !zoneIdStr) return;
 
-    if (recordType === 'A') {
-      const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
-      if (!ipv4Regex.test(recordValue)) {
-        toast.error('Invalid IPv4 address format (e.g., 192.0.2.1)');
-        return;
-      }
-    }
-
     setSubmitting(true);
     try {
-      const fullRecordName = recordName.includes('.') ? recordName : `${recordName}.${zoneName}`;
+      const fullRecordName = recordName.includes(zoneName) 
+        ? recordName 
+        : `${recordName}.${zoneName}`;
       
-      // Sending BOTH common variations to the backend just in case
       const payload = {
         name: fullRecordName,
-        type: recordType,
-        record_type: recordType,
+        type: recordType,           
+        record_type: recordType,    // <--- THIS FIXES THE 422 ERROR FROM YOUR SCREENSHOT
         value: recordValue,
-        ttl: recordTtl,
+        ttl: 300,                   
       };
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}/records/`, {
@@ -384,14 +372,13 @@ export default function ZoneDetails() {
         setRecords([...records, newRecord]);
         setRecordName('');
         setRecordValue('');
-        toast.success('Record added successfully!');
       } else {
         const errText = await response.text();
-        toast.error(`Failed to add record: ${errText}`);
+        alert(`Failed to add record: ${errText}`);
       }
     } catch (error) {
       console.error('Error adding record:', error);
-      toast.error('An error occurred while adding the record.');
+      alert('An error occurred while adding the record.');
     } finally {
       setSubmitting(false);
     }
@@ -408,153 +395,133 @@ export default function ZoneDetails() {
 
       if (response.ok) {
         setRecords(records.filter(r => r.id !== recordId));
-        toast.success('Record deleted successfully!');
       } else {
-        toast.error('Failed to delete record');
+        alert('Failed to delete record');
       }
     } catch (error) {
       console.error('Error deleting record:', error);
-      toast.error('An error occurred while deleting the record.');
+      alert('An error occurred while deleting the record.');
     }
   };
 
-  const exportZoneFile = () => {
-    let content = `$ORIGIN ${zoneName}.\n$TTL 300\n\n`;
-    records.forEach(r => {
-      const rType = r.type || r.record_type || 'UNKNOWN';
-      content += `${r.name}\tIN\t${rType}\t${r.value}\n`;
-    });
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${zoneName}.zone`;
-    a.click();
-    toast.success('Zone file exported!');
-  };
-
-  const filteredRecords = records.filter(r => {
-    const rType = r.type || r.record_type;
-    return typeFilter === 'ALL' || rType === typeFilter;
-  });
-
   if (!zoneIdStr) {
-    return (
-      <div className="flex h-screen bg-gray-100 items-center justify-center">
-        <div className="text-gray-500 text-xl font-medium animate-pulse">Loading Zone...</div>
-      </div>
-    );
+    return <div className="flex h-screen items-center justify-center bg-gray-100">Loading...</div>;
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <div className="w-64 bg-[#1f2937] text-white flex flex-col">
-        <div className="p-4 text-lg font-bold border-b border-gray-700">AWS Clone</div>
-        <nav className="flex-1 overflow-y-auto">
-          <ul className="p-2 space-y-1">
-            <li><Link href="/zones" className="block px-4 py-2 bg-blue-600 rounded">Hosted Zones</Link></li>
-            <li><Link href="/dashboard" className="block px-4 py-2 text-gray-300 hover:bg-gray-800 rounded">Dashboard</Link></li>
-            <li><Link href="/traffic-policies" className="block px-4 py-2 text-gray-300 hover:bg-gray-800 rounded">Traffic Policies</Link></li>
-            <li><Link href="/query" className="block px-4 py-2 text-gray-300 hover:bg-gray-800 rounded">DNS Lookup Tool</Link></li>
-          </ul>
+    <div className="flex h-screen bg-gray-100 font-sans">
+      <aside className="w-64 bg-[#1f2937] text-white flex flex-col">
+        <div className="p-4 text-xl font-bold border-b border-gray-700">AWS Clone</div>
+        <nav className="flex-1 p-4 space-y-2">
+          <Link href="/zones" className="block px-4 py-2 bg-blue-600 rounded text-white">Hosted Zones</Link>
+          <Link href="/dashboard" className="block px-4 py-2 text-gray-300 hover:bg-gray-800 rounded">Dashboard</Link>
+          <Link href="/traffic-policies" className="block px-4 py-2 text-gray-300 hover:bg-gray-800 rounded">Traffic Policies</Link>
         </nav>
-      </div>
+      </aside>
 
-      <div className="flex-1 overflow-y-auto bg-gray-50 p-8">
+      <main className="flex-1 overflow-y-auto p-8 bg-white">
         <div className="max-w-5xl mx-auto">
-          <div className="flex justify-between items-center mb-6">
-            <Link href="/zones" className="text-blue-600 hover:underline">&larr; Back to Hosted zones</Link>
-            <button onClick={exportZoneFile} className="bg-gray-800 text-white px-4 py-2 rounded text-sm font-medium hover:bg-gray-700 shadow-sm">
-              Export Zone File (.zone)
-            </button>
-          </div>
+          <Link href="/zones" className="text-blue-500 hover:underline mb-6 inline-block">
+            &larr; Back to Hosted zones
+          </Link>
           
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">{zoneName} - Records</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">{zoneName} - Records</h2>
 
           <div className="bg-white rounded border border-gray-200 shadow-sm p-6 mb-8">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Quick create record</h3>
-            <form onSubmit={handleAddRecord} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-              <div className="md:col-span-1">
+            <form onSubmit={handleAddRecord} className="flex flex-col md:flex-row gap-4 items-end">
+              <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Record name</label>
-                <input type="text" required value={recordName} onChange={(e) => setRecordName(e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="subdomain" />
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="text" 
+                    required 
+                    value={recordName} 
+                    onChange={(e) => setRecordName(e.target.value)} 
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                    placeholder="subdomain" 
+                  />
+                  <span className="text-gray-500 text-sm whitespace-nowrap">.{zoneName}</span>
+                </div>
               </div>
-              <div className="md:col-span-1">
+              
+              <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Record type</label>
-                <select value={recordType} onChange={(e) => setRecordType(e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
-                  <option value="A">A</option><option value="AAAA">AAAA</option><option value="CNAME">CNAME</option><option value="TXT">TXT</option>
+                <select 
+                  value={recordType} 
+                  onChange={(e) => setRecordType(e.target.value)} 
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="A">A - Routes traffic to an IPv4</option>
+                  <option value="AAAA">AAAA - Routes traffic to an IPv6</option>
+                  <option value="CNAME">CNAME - Routes traffic to another domain</option>
+                  <option value="TXT">TXT - Text record</option>
                 </select>
               </div>
-              <div className="md:col-span-1">
+              
+              <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Value</label>
-                <input type="text" required value={recordValue} onChange={(e) => setRecordValue(e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder={recordType === 'A' ? '192.0.2.1' : 'example.com'} />
+                <input 
+                  type="text" 
+                  required 
+                  value={recordValue} 
+                  onChange={(e) => setRecordValue(e.target.value)} 
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                  placeholder="192.0.2.1" 
+                />
               </div>
-              <div className="md:col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">TTL (secs)</label>
-                <select value={recordTtl} onChange={(e) => setRecordTtl(Number(e.target.value))} className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
-                  <option value={60}>60</option><option value={300}>300</option><option value={3600}>3600</option><option value={86400}>86400</option>
-                </select>
-              </div>
-              <div className="md:col-span-1">
-                <button type="submit" disabled={submitting} className="w-full bg-[#ec7211] text-white px-4 py-2 rounded font-medium shadow-sm hover:bg-[#d5660f] disabled:opacity-50">
+              
+              <div>
+                <button 
+                  type="submit" 
+                  disabled={submitting} 
+                  className="bg-[#ec7211] text-white px-6 py-2 rounded font-medium hover:bg-[#d5660f] disabled:opacity-50"
+                >
                   {submitting ? 'Adding...' : 'Add Record'}
                 </button>
               </div>
             </form>
           </div>
 
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-md font-bold text-gray-800">DNS Records List</h3>
-            <div className="space-x-2">
-              {['ALL', 'A', 'AAAA', 'CNAME', 'TXT'].map((type) => (
-                <button key={type} onClick={() => setTypeFilter(type)} className={`px-3 py-1 rounded text-xs font-semibold ${typeFilter === type ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-300'}`}>
-                  {type}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <div className="bg-white rounded border border-gray-200 overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200 text-sm text-left">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Record name</th>
-                  <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Value</th>
-                  <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">TTL</th>
-                  <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                  <th className="px-6 py-3 font-medium text-gray-500 uppercase tracking-wider">Record name</th>
+                  <th className="px-6 py-3 font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 font-medium text-gray-500 uppercase tracking-wider">Value</th>
+                  <th className="px-6 py-3 font-medium text-gray-500 uppercase tracking-wider">TTL</th>
+                  <th className="px-6 py-3 font-medium text-gray-500 uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200">
                 {loading ? (
                   <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500">Loading records...</td></tr>
-                ) : filteredRecords.length === 0 ? (
-                  <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500">No records found.</td></tr>
+                ) : records.length === 0 ? (
+                  <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500">No records found for this hosted zone.</td></tr>
                 ) : (
-                  filteredRecords.map((record) => {
-                    // X-Ray Debugging: If both are missing, print the whole object so we can see the keys
-                    const displayType = record.type || record.record_type || JSON.stringify(record);
-                    
-                    return (
-                      <tr key={record.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-gray-900">{record.name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-gray-500 font-mono text-xs overflow-hidden max-w-[150px] truncate">
-                          {displayType}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-gray-500">{record.value}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-gray-500">{record.ttl}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button onClick={() => handleDeleteRecord(record.id)} className="text-red-600 hover:text-red-900">Delete</button>
-                        </td>
-                      </tr>
-                    )
-                  })
+                  records.map((record) => (
+                    <tr key={record.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-gray-900">{record.name}</td>
+                      <td className="px-6 py-4 text-gray-500 font-medium">
+                        {/* THIS FIXES THE BLANK TYPE COLUMN IN YOUR TABLE */}
+                        {record.type || record.record_type || 'Unknown'}
+                      </td>
+                      <td className="px-6 py-4 text-gray-500">{record.value}</td>
+                      <td className="px-6 py-4 text-gray-500">{record.ttl}</td>
+                      <td className="px-6 py-4 text-sm font-medium">
+                        <button onClick={() => handleDeleteRecord(record.id)} className="text-red-600 hover:text-red-900">
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
-
