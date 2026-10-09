@@ -1,10 +1,7 @@
 "use client";
 
-export const dynamic = 'force-dynamic';
-
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
 
 interface Record {
   id: string;
@@ -15,10 +12,7 @@ interface Record {
 }
 
 export default function ZoneDetails() {
-  const params = useParams();
-  const zoneIdStr = params?.id as string;
-  
-  const [mounted, setMounted] = useState(false);
+  const [zoneIdStr, setZoneIdStr] = useState<string>("");
   const [zoneName, setZoneName] = useState<string>("Loading...");
   const [records, setRecords] = useState<Record[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,49 +23,54 @@ export default function ZoneDetails() {
   const [recordValue, setRecordValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Extract ID directly from window location to avoid all Next.js router prerender crashes
   useEffect(() => {
-    setMounted(true);
+    const pathSegments = window.location.pathname.split('/');
+    const idFromPath = pathSegments[pathSegments.length - 1];
+    if (idFromPath) {
+      setZoneIdStr(idFromPath);
+    }
   }, []);
 
   useEffect(() => {
-    if (mounted && zoneIdStr) {
-      async function fetchZoneDetails() {
-        try {
-          setLoading(true);
-          const zoneRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}`);
-          if (zoneRes.ok) {
-            const zoneData = await zoneRes.json();
-            setZoneName(zoneData.name);
-          } else {
-            setZoneName("Unknown Zone");
-          }
+    if (!zoneIdStr) return;
 
-          const recordsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}/records/`);
-          if (recordsRes.ok) {
-            const text = await recordsRes.text();
-            if (text) {
-              try {
-                const recordsData = JSON.parse(text);
-                setRecords(Array.isArray(recordsData) ? recordsData : []);
-              } catch (e) {
-                setRecords([]);
-              }
-            } else {
+    async function fetchZoneDetails() {
+      try {
+        setLoading(true);
+        const zoneRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}`);
+        if (zoneRes.ok) {
+          const zoneData = await zoneRes.json();
+          setZoneName(zoneData.name);
+        } else {
+          setZoneName("Unknown Zone");
+        }
+
+        const recordsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}/records/`);
+        if (recordsRes.ok) {
+          const text = await recordsRes.text();
+          if (text) {
+            try {
+              const recordsData = JSON.parse(text);
+              setRecords(Array.isArray(recordsData) ? recordsData : []);
+            } catch (e) {
               setRecords([]);
             }
           } else {
             setRecords([]);
           }
-        } catch (error) {
-          console.error('Error fetching zone details:', error);
-        } finally {
-          setLoading(false);
+        } else {
+          setRecords([]);
         }
+      } catch (error) {
+        console.error('Error fetching zone details:', error);
+      } finally {
+        setLoading(false);
       }
-
-      fetchZoneDetails();
     }
-  }, [mounted, zoneIdStr]);
+
+    fetchZoneDetails();
+  }, [zoneIdStr]);
 
   const handleAddRecord = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,10 +127,10 @@ export default function ZoneDetails() {
     }
   };
 
-  if (!mounted) {
+  if (!zoneIdStr) {
     return (
       <div className="flex h-screen bg-gray-100 items-center justify-center">
-        <div className="text-gray-500 text-xl font-medium animate-pulse">Loading Application...</div>
+        <div className="text-gray-500 text-xl font-medium animate-pulse">Loading Zone...</div>
       </div>
     );
   }
@@ -272,9 +271,6 @@ export default function ZoneDetails() {
                     <tr key={record.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-gray-900">
                         {record.name}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                        {record.type}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-gray-500">
                         {record.value}
