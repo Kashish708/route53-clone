@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
 import { useParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 
 interface Record {
   id: string;
@@ -13,9 +14,8 @@ interface Record {
   ttl: number;
 }
 
-export default function ZoneDetails() {
+function ZoneDetails() {
   const params = useParams();
-  // Ensure we safely extract the string ID
   const zoneIdStr = params?.id as string;
   
   const [zoneName, setZoneName] = useState<string>("Loading...");
@@ -36,7 +36,7 @@ export default function ZoneDetails() {
       
       try {
         setLoading(true);
-        // 1. Fetch zone details (to get the name)
+        // 1. Fetch zone details
         const zoneRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}`);
         if (zoneRes.ok && isMounted) {
           const zoneData = await zoneRes.json();
@@ -45,11 +45,10 @@ export default function ZoneDetails() {
            setZoneName("Unknown Zone");
         }
 
-        // 2. Fetch records safely, handling empty states without crashing
+        // 2. Fetch records safely
         const recordsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}/records/`);
         if (recordsRes.ok && isMounted) {
           const text = await recordsRes.text();
-          // Check if response is empty before parsing JSON to prevent crashes
           if (text) {
              try {
                 const recordsData = JSON.parse(text);
@@ -62,7 +61,6 @@ export default function ZoneDetails() {
              setRecords([]);
           }
         } else if (isMounted) {
-           // If 404, it just means no records exist yet. This is not a crash!
            setRecords([]);
         }
       } catch (error) {
@@ -88,7 +86,6 @@ export default function ZoneDetails() {
     setSubmitting(true);
     try {
       const fullRecordName = `${recordName}.${zoneName}`;
-      // Note: We use the raw string ID here for the API call
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}/records/`, {
         method: 'POST',
         headers: {
@@ -310,3 +307,8 @@ export default function ZoneDetails() {
     </div>
   );
 }
+
+// Disable SSR for this component to prevent hydration errors from useParams
+export default dynamic(() => Promise.resolve(ZoneDetails), { 
+  ssr: false 
+});
