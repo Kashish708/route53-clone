@@ -1,5 +1,3 @@
-export const dynamic = 'force-dynamic';
-
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -20,12 +18,36 @@ export default function Zones() {
   useEffect(() => {
     async function fetchZones() {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/`);
+        // 1. Fetch the zones and bust the browser cache
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/`, { 
+          cache: 'no-store' 
+        });
+        
         if (!response.ok) {
           throw new Error('Failed to fetch zones');
         }
-        const data = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/`).then(res => res.json());
-        setZones(data);
+        const zonesData = await response.json();
+
+        // 2. Loop through each zone and manually count its records
+        const zonesWithTrueCounts = await Promise.all(
+          zonesData.map(async (zone: Zone) => {
+            try {
+              const recordsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zone.id}/records/`, { 
+                cache: 'no-store' 
+              });
+              if (recordsRes.ok) {
+                const records = await recordsRes.json();
+                // Override the backend's default 0 with the actual length of the records array
+                return { ...zone, record_count: records.length }; 
+              }
+              return zone;
+            } catch (err) {
+              return zone;
+            }
+          })
+        );
+
+        setZones(zonesWithTrueCounts);
       } catch (error) {
         console.error('Error fetching zones:', error);
       } finally {
