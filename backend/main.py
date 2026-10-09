@@ -9,7 +9,6 @@ models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(title="Route53 Clone API")
 
-# CORS Middleware configuration for Vercel deployment
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,7 +17,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Pydantic Schemas
 class DNSRecordBase(BaseModel):
     name: str
     record_type: str
@@ -53,7 +51,7 @@ class HostedZoneResponse(HostedZoneBase):
     class Config:
         from_attributes = True
 
-# --- API Endpoints ---
+
 
 @app.post("/zones/", response_model=HostedZoneResponse)
 def create_zone(zone: HostedZoneCreate, db: Session = Depends(database.get_db)):
