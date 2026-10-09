@@ -1,124 +1,164 @@
+export const dynamic = 'force-dynamic';
+
 "use client";
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Head from 'next/head';
 
-// 1. Strict TypeScript Interfaces
-interface DNSRecord {
-  id: number;
-  name: string;
-  record_type: string;
-  value: string;
-  ttl: number;
-}
-
-interface HostedZone {
-  id: number;
+interface Zone {
+  id: string;
   name: string;
   description: string;
-  records: DNSRecord[];
+  record_count: number;
 }
 
 export default function Zones() {
-  // 2. State setup using interfaces and loading flags
-  const [zones, setZones] = useState<HostedZone[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${apiUrl}/zones/`)
-      .then(res => res.json())
-      .then(data => {
+    async function fetchZones() {
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch zones');
+        }
+        const data = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/`).then(res => res.json());
         setZones(data);
-        setIsLoading(false); // Turn off loading when data arrives
-      })
-      .catch(err => {
-        console.error("Error fetching zones:", err);
-        setIsLoading(false);
-      });
-      
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === 'e') {
-        e.preventDefault();
-        exportToJson();
+      } catch (error) {
+        console.error('Error fetching zones:', error);
+      } finally {
+        setLoading(false);
       }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [apiUrl, zones]); 
-
-  const exportToJson = () => {
-    if (zones.length === 0) return alert("No zones to export!");
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(zones, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "route53_hosted_zones.json");
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-  };
+    }
+    fetchZones();
+  }, []);
 
   return (
     <div className="flex h-screen bg-gray-100">
-      <aside className="w-64 bg-slate-800 text-white flex flex-col">
-        <div className="p-4 text-xl font-bold border-b border-slate-700">AWS Clone</div>
-        <nav className="flex-1 p-4 space-y-2">
-          <Link href="/zones" className="block px-4 py-2 bg-blue-600 rounded text-white">Hosted Zones</Link>
-          <Link href="/dashboard" className="block px-4 py-2 text-slate-300 hover:bg-slate-700 rounded">Dashboard</Link>
-          <Link href="/traffic-policies" className="block px-4 py-2 text-slate-300 hover:bg-slate-700 rounded">Traffic Policies</Link>
+      <Head>
+        <title>Hosted Zones - AWS Clone</title>
+      </Head>
+      
+      {/* Sidebar */}
+      <div className="w-64 bg-[#1f2937] text-white flex flex-col">
+        <div className="p-4 text-lg font-bold border-b border-gray-700">AWS Clone</div>
+        <nav className="flex-1 overflow-y-auto">
+          <ul className="p-2 space-y-1">
+            <li>
+              <Link href="/zones" className="block px-4 py-2 bg-blue-600 rounded">
+                Hosted Zones
+              </Link>
+            </li>
+            <li>
+              <Link href="/dashboard" className="block px-4 py-2 text-gray-300 hover:bg-gray-800 rounded">
+                Dashboard
+              </Link>
+            </li>
+            <li>
+              <Link href="/traffic-policies" className="block px-4 py-2 text-gray-300 hover:bg-gray-800 rounded">
+                Traffic Policies
+              </Link>
+            </li>
+          </ul>
         </nav>
-      </aside>
+      </div>
 
-      <main className="flex-1 p-8 flex flex-col">
-        <div className="bg-[#00297b] text-white px-4 py-2 text-sm mb-6 rounded flex justify-between items-center shadow">
-          <span>ℹ️ <strong>Tip:</strong> Press <code>Ctrl + E</code> to quick-export your zones to JSON.</span>
-        </div>
-
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Hosted zones</h1>
-          <div className="space-x-3">
-            <button onClick={exportToJson} className="bg-white border border-gray-300 text-gray-700 px-4 py-1.5 rounded font-bold text-sm hover:bg-gray-50 shadow-sm transition-colors">
-              Export JSON
-            </button>
-            <button className="bg-[#ec7211] hover:bg-[#eb5f07] text-white px-4 py-1.5 rounded font-bold text-sm shadow-sm transition-colors cursor-not-allowed opacity-80">
-              Create hosted zone
-            </button>
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
+        <main className="flex-1 overflow-y-auto p-8">
+          
+          {/* Header area with Action Buttons */}
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-semibold text-gray-900">Hosted zones</h1>
+            <div className="space-x-3">
+              <button 
+                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded hover:bg-gray-50 shadow-sm"
+                onClick={() => {
+                  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(zones, null, 2));
+                  const downloadAnchorNode = document.createElement('a');
+                  downloadAnchorNode.setAttribute("href", dataStr);
+                  downloadAnchorNode.setAttribute("download", "zones.json");
+                  document.body.appendChild(downloadAnchorNode);
+                  downloadAnchorNode.click();
+                  downloadAnchorNode.remove();
+                }}
+              >
+                Export JSON
+              </button>
+              <button 
+                className="px-4 py-2 bg-[#ec7211] text-white font-medium rounded shadow-sm opacity-50 cursor-not-allowed"
+                disabled
+              >
+                Create hosted zone
+              </button>
+            </div>
           </div>
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded shadow-sm overflow-hidden">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 font-semibold text-gray-600">Hosted zone name</th>
-                <th className="px-6 py-3 font-semibold text-gray-600">Description</th>
-                <th className="px-6 py-3 font-semibold text-gray-600">Record count</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {/* 3. Handle Loading UI in Table */}
-              {isLoading ? (
-                <tr><td colSpan={3} className="px-6 py-8 text-center text-gray-500 font-medium">Fetching hosted zones from database...</td></tr>
-              ) : zones.length === 0 ? (
-                <tr><td colSpan={3} className="px-6 py-8 text-center text-gray-500">No hosted zones found.</td></tr>
-              ) : (
-                zones.map((zone) => (
-                  <tr key={zone.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-3 font-medium">
-                      <Link href={`/zones/${zone.id}`} className="text-[#0073bb] hover:underline">
-                        {zone.name}
-                      </Link>
+          
+          {/* Information banner */}
+          <div className="bg-[#002f87] text-white p-3 rounded mb-6 flex items-center text-sm font-medium shadow-sm">
+            <span className="bg-[#4d7efb] text-white text-xs px-2 py-0.5 rounded-full mr-3 border border-white/20">i</span>
+            <span>Tip: This is a read-only list. Create new zones via the backend API.</span>
+          </div>
+          
+          {/* Table Container */}
+          <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">
+                    Hosted zone name
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">
+                    Description
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">
+                    Record count
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {loading ? (
+                  <tr>
+                    <td colSpan={3} className="px-6 py-12 text-center text-gray-500">
+                      <div className="flex flex-col items-center justify-center">
+                        <svg className="animate-spin h-8 w-8 text-blue-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Loading hosted zones...
+                      </div>
                     </td>
-                    <td className="px-6 py-3 text-gray-700">{zone.description || '-'}</td>
-                    <td className="px-6 py-3 text-gray-700">{zone.records?.length || 0}</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </main>
+                ) : zones.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-6 py-12 text-center text-gray-500">
+                      No hosted zones found. Create one using the backend API.
+                    </td>
+                  </tr>
+                ) : (
+                  zones.map((zone) => (
+                    <tr key={zone.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap font-medium text-[#0073bb]">
+                        <Link href={`/zones/${zone.id}`} className="hover:underline">
+                          {zone.name}
+                        </Link>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                        {zone.description}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                        {zone.record_count}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
