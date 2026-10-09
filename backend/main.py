@@ -1,54 +1,15 @@
-# from fastapi import FastAPI
-# from fastapi.middleware.cors import CORSMiddleware
-# # Keep any other imports you already have here (like models, SessionLocal, etc.)
-
-# app = FastAPI()
-
-# # Paste this CORS block directly below app = FastAPI()
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"], 
-#     allow_credentials=True,
-#     allow_methods=["*"], 
-#     allow_headers=["*"],
-# )
-
-# # --- KEEP ALL YOUR EXISTING @app.get AND @app.post ROUTES BELOW THIS LINE! ---
-# from fastapi import FastAPI, Depends, HTTPException
-# from sqlalchemy.orm import Session
-# from pydantic import BaseModel
-# from typing import List, Optional
-# import models, database
-# from fastapi.middleware.cors import CORSMiddleware
-
-
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 from typing import List, Optional
 import models, database
-
-app = FastAPI()
-
-# CORS Middleware configuration for Vercel deployment
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ---------------------------------------------------------
-# YOUR EXISTING CODE STARTS HERE
-# (Keep your models.Base.metadata.create_all and @app routes exactly as they are below this line)
-# ---------------------------------------------------------
 
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(title="Route53 Clone API")
 
+# CORS Middleware configuration for Vercel deployment
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -83,8 +44,14 @@ class HostedZoneCreate(HostedZoneBase):
 class HostedZoneResponse(HostedZoneBase):
     id: int
     records: List[DNSRecordResponse] = []
+
+    @computed_field
+    @property
+    def record_count(self) -> int:
+        return len(self.records)
+
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # --- API Endpoints ---
 
@@ -100,6 +67,13 @@ def create_zone(zone: HostedZoneCreate, db: Session = Depends(database.get_db)):
 def get_zones(skip: int = 0, limit: int = 100, db: Session = Depends(database.get_db)):
     return db.query(models.HostedZone).offset(skip).limit(limit).all()
 
+@app.get("/zones/{zone_id}", response_model=HostedZoneResponse)
+def get_zone(zone_id: int, db: Session = Depends(database.get_db)):
+    db_zone = db.query(models.HostedZone).filter(models.HostedZone.id == zone_id).first()
+    if not db_zone:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    return db_zone
+
 @app.delete("/zones/{zone_id}")
 def delete_zone(zone_id: int, db: Session = Depends(database.get_db)):
     db_zone = db.query(models.HostedZone).filter(models.HostedZone.id == zone_id).first()
@@ -109,6 +83,11 @@ def delete_zone(zone_id: int, db: Session = Depends(database.get_db)):
     db.commit()
     return {"message": "Zone deleted successfully"}
 
+@app.get("/zones/{zone_id}/records/", response_model=List[DNSRecordResponse])
+def get_records(zone_id: int, db: Session = Depends(database.get_db)):
+    records = db.query(models.DNSRecord).filter(models.DNSRecord.zone_id == zone_id).all()
+    return records
+
 @app.post("/zones/{zone_id}/records/", response_model=DNSRecordResponse)
 def create_record(zone_id: int, record: DNSRecordCreate, db: Session = Depends(database.get_db)):
     db_record = models.DNSRecord(**record.dict(), zone_id=zone_id)
@@ -117,9 +96,9 @@ def create_record(zone_id: int, record: DNSRecordCreate, db: Session = Depends(d
     db.refresh(db_record)
     return db_record
 
-@app.delete("/records/{record_id}")
-def delete_record(record_id: int, db: Session = Depends(database.get_db)):
-    db_record = db.query(models.DNSRecord).filter(models.DNSRecord.id == record_id).first()
+@app.delete("/zones/{zone_id}/records/{record_id}")
+def delete_record(zone_id: int, record_id: int, db: Session = Depends(database.get_db)):
+    db_record = db.query(models.DNSRecord).filter(models.DNSRecord.id == record_id, models.DNSRecord.zone_id == zone_id).first()
     if not db_record:
         raise HTTPException(status_code=404, detail="Record not found")
     db.delete(db_record)
