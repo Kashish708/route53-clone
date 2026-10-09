@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import Head from 'next/head';
 import { useParams } from 'next/navigation';
-import dynamic from 'next/dynamic';
 
 interface Record {
   id: string;
@@ -14,10 +12,11 @@ interface Record {
   ttl: number;
 }
 
-function ZoneDetails() {
+export default function ZoneDetails() {
   const params = useParams();
   const zoneIdStr = params?.id as string;
   
+  const [mounted, setMounted] = useState(false);
   const [zoneName, setZoneName] = useState<string>("Loading...");
   const [records, setRecords] = useState<Record[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,56 +27,60 @@ function ZoneDetails() {
   const [recordValue, setRecordValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // 1. Prevent hydration errors by ensuring component is mounted
   useEffect(() => {
-    let isMounted = true;
+    setMounted(true);
+  }, []);
+
+  // 2. Set the page title safely
+  useEffect(() => {
+    if (mounted) {
+      document.title = `${zoneName} - AWS Clone`;
+    }
+  }, [zoneName, mounted]);
+
+  // 3. Fetch data safely
+  useEffect(() => {
+    if (!mounted || !zoneIdStr) return;
 
     async function fetchZoneDetails() {
-      if (!zoneIdStr) return;
-      
       try {
         setLoading(true);
-        // 1. Fetch zone details
+        // Fetch zone details
         const zoneRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}`);
-        if (zoneRes.ok && isMounted) {
+        if (zoneRes.ok) {
           const zoneData = await zoneRes.json();
           setZoneName(zoneData.name);
-        } else if (isMounted) {
-           setZoneName("Unknown Zone");
+        } else {
+          setZoneName("Unknown Zone");
         }
 
-        // 2. Fetch records safely
+        // Fetch records safely
         const recordsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/zones/${zoneIdStr}/records/`);
-        if (recordsRes.ok && isMounted) {
+        if (recordsRes.ok) {
           const text = await recordsRes.text();
           if (text) {
              try {
                 const recordsData = JSON.parse(text);
                 setRecords(Array.isArray(recordsData) ? recordsData : []);
              } catch (e) {
-                console.error("Failed to parse records", e);
                 setRecords([]);
              }
           } else {
              setRecords([]);
           }
-        } else if (isMounted) {
+        } else {
            setRecords([]);
         }
       } catch (error) {
         console.error('Error fetching zone details:', error);
       } finally {
-        if (isMounted) {
-           setLoading(false);
-        }
+        setLoading(false);
       }
     }
 
     fetchZoneDetails();
-    
-    return () => {
-       isMounted = false;
-    };
-  }, [zoneIdStr]);
+  }, [mounted, zoneIdStr]);
 
   const handleAddRecord = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,11 +108,11 @@ function ZoneDetails() {
         setRecordName('');
         setRecordValue('');
       } else {
-        alert('Failed to add record. Ensure you entered valid data.');
+        alert('Failed to add record.');
       }
     } catch (error) {
       console.error('Error adding record:', error);
-      alert('An error occurred while adding the record.');
+      alert('An error occurred.');
     } finally {
       setSubmitting(false);
     }
@@ -134,16 +137,21 @@ function ZoneDetails() {
     }
   };
 
+  // Show safe loading state while client hydrates
+  if (!mounted) {
+    return (
+      <div className="flex h-screen bg-gray-100 items-center justify-center">
+         <div className="text-gray-500 text-xl font-medium animate-pulse">Loading Application...</div>
+      </div>
+    );
+  }
+
   if (!zoneIdStr) {
-     return <div className="p-8">Invalid Zone ID</div>;
+     return <div className="p-8 text-black">Invalid Zone ID</div>;
   }
 
   return (
     <div className="flex h-screen bg-gray-100">
-      <Head>
-        <title>{zoneName} - AWS Clone</title>
-      </Head>
-      
       {/* Sidebar */}
       <div className="w-64 bg-[#1f2937] text-white flex flex-col">
         <div className="p-4 text-lg font-bold border-b border-gray-700">AWS Clone</div>
@@ -307,8 +315,3 @@ function ZoneDetails() {
     </div>
   );
 }
-
-// Disable SSR for this component to prevent hydration errors from useParams
-export default dynamic(() => Promise.resolve(ZoneDetails), { 
-  ssr: false 
-});
